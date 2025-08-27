@@ -13,7 +13,9 @@ MLFlow works with many popular machine learning libraries and can be used in any
 KEY FEATURES :
 
 Track metirces, parameters and artifacts for each run.
+
 save and version models for reproducibility.
+
 manages models in differnet lifecycle stages.
 
 
@@ -25,7 +27,9 @@ W&B integrats with many ML libraries like Tensorflow,Pytorch, and Keras etc.
 KEY FEATURES:
 
 Log training performance in real-time.\
+
 Compare multiple runs and hyperparameters.
+
 Track datasets, code and model files.
 
 ### **COMET**
@@ -36,8 +40,11 @@ experiment reproducible and well-documented.
 KEY FEATURES
 
 Track experiments, Hyperparameters and results
+
 Compare model runs using visual dashboards.
+
 Record code versions and dataset changes
+
 Organize projects and collaborate with teams.
 
 ### **AIRFLOW**
@@ -46,9 +53,13 @@ Organize projects and collaborate with teams.
  evaluation and deployment.workflows are simple python scripts code and airflow take care of the execution order.
 
  KEY FEATURES:
+
  Define machine learning workflows using python scripts.
+ 
  schedule and automate repetitive tasks.
+ 
  Monitor task progress through web interface.
+ 
  handle retries, failures and dependencies.
 
 ### **KUBEFLOW**
@@ -59,7 +70,9 @@ hyperparameters tuning and model serving in the cloud or on local kubernetes clu
 KEY FEATURES:
 
 Build machine learning pipelines with full control.
+
 Run Jobs on kubernetes clusters at scale.
+
 Tools for tuning, serving and tracking models.
 
 
@@ -71,8 +84,11 @@ it works well with Git and integrates with remote storages like S3 and Google dr
 KEY FEATURES:
 
 Track and version datasets and models.
+
 Connect large files to Git without storing them
+
 Reproduce experiments with consistens data and code
+
 Share projects with remote storage integration
 
 ### **MetaFlow**
@@ -83,7 +99,9 @@ scheduling and scaling machine learning pipelines both locally and in the cloud.
 KEY FEATURES:
 
 Run pipelines locally or on the cloud.
+
 Automatically track runs and metadata
+
 resume failed runs from the last step
 
 ### **Pachyderm**
@@ -94,8 +112,11 @@ that automatically update when data changes.
 KEY FEATURES:
 
 Version control for datasets like Git for code
+
 Build automatic pipelines that run on data updates.
+
 Reproduce results with full data and code history.
+
 Works with Docker and any machine learning language.
 
 
@@ -107,7 +128,9 @@ after deployments.
 KEY FEATURES:
 
 Monitor data quality and model performance
+
 detect data drift and changes over time
+
 Generate clear visual reports and dashboards.
 
 
