@@ -7,7 +7,7 @@ These tools help build reliable and production-ready machine learning systems.
 
 ### **MLFlow**
 
-MLFlow is an opensource tool that helps track machine learning experiments. it lets you log training runs, version models and manage deployment stages.
+[MLFlow](https://mlflow.org/) is an opensource tool that helps track machine learning experiments. it lets you log training runs, version models and manage deployment stages.
 MLFlow works with many popular machine learning libraries and can be used in any enviroment.
 
 KEY FEATURES :
@@ -21,6 +21,8 @@ manages models in differnet lifecycle stages.
 
 ### **WEIGHT & BIASES** :
 
+[W&B](https://wandb.ai/site/)
+
 its is for logging and visualising machine learning experiments. it helps teams monitor model performance and organize experiments over time. 
 W&B integrats with many ML libraries like Tensorflow,Pytorch, and Keras etc.
 
@@ -33,6 +35,8 @@ Compare multiple runs and hyperparameters.
 Track datasets, code and model files.
 
 ### **COMET**
+
+[COMET](https://www.comet.com/site/)
 
 It helps you monitor machine learning  experiments from start to finish. it tracks metrices, parameters, code, and artifacts to make
 experiment reproducible and well-documented.
@@ -49,6 +53,8 @@ Organize projects and collaborate with teams.
 
 ### **AIRFLOW**
 
+[AIRFLOW](https://airflow.apache.org/)
+
  Apache Airflow is a workflow automation toolm it lets you define and schedule machine learning tasks like data preprocessing, training,
  evaluation and deployment.workflows are simple python scripts code and airflow take care of the execution order.
 
@@ -64,6 +70,8 @@ Organize projects and collaborate with teams.
 
 ### **KUBEFLOW**
 
+[Kubeflow](https://www.kubeflow.org/)
+
 Kubeflow is a kubernetes-based platform for building and managing machine learning workflows. it lets you run training,
 hyperparameters tuning and model serving in the cloud or on local kubernetes clusters.
 
@@ -77,6 +85,7 @@ Tools for tuning, serving and tracking models.
 
 
 ### **DVC (Data Version Control)
+[DVC](https://dvc.org/).
 
 DVC is like Git for your data and models, it helps you version datasets, track changes and keep everything in sync across experiments.
 it works well with Git and integrates with remote storages like S3 and Google drive.
@@ -93,6 +102,8 @@ Share projects with remote storage integration
 
 ### **MetaFlow**
 
+[MetaFlow](https://metaflow.org/).
+
 It help data scientists and machine learning engineers build and manage workflows using simple python code. it supports tracking, 
 scheduling and scaling machine learning pipelines both locally and in the cloud.
 
@@ -105,6 +116,8 @@ Automatically track runs and metadata
 resume failed runs from the last step
 
 ### **Pachyderm**
+
+[Pachyderm](https://docs.pachyderm.com/).
 
 Its a data pipeline and version control system. it helps you manage and track changes in data, and build reproducible pipelines
 that automatically update when data changes.
@@ -121,6 +134,8 @@ Works with Docker and any machine learning language.
 
 
 ### **Evidently AI**
+
+[Evidently AI](https://www.evidentlyai.com/).
 
 IT's a monitoring tool for machine learning models.  it helps detect issues like data drift, performance drops and inconsistent predictions 
 after deployments.
