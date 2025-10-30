@@ -26,11 +26,21 @@ MLOps solves:
 
 **Open-source ML lifecycle platform:** MLflow is most widely adopted MLOps tool. Built by Databricks, now Linux Foundation project. Tracks experiments, packages models, deploys anywhere. Works with any ML library - PyTorch, TensorFlow, scikit-learn, XGBoost. Four main components solving different MLOps problems.
 
-Why MLflow dominates: Simple to start, powerful at scale. Used by thousands of companies from startups to enterprises. Open source with no vendor lock-in. Integrates with everything. Can run locally or in cloud. Minimal code changes needed.
+**What MLflow does:** Solves three fundamental ML problems. First, experiment chaos - running hundreds of training experiments with different hyperparameters, models, datasets. MLflow logs everything automatically. Second, model deployment complexity - packaging PyTorch model with dependencies, serving as API, deploying to cloud. MLflow standardizes this. Third, model lifecycle management - versioning models, promoting staging to production, tracking which model version deployed where. MLflow provides centralized registry.
+
+**Why needed in production systems:** You train YOLOv8 model for object detection. Try 50 different combinations of learning rates, batch sizes, augmentation strategies. Without MLflow, you write parameters in notebook cell, save model as "best_model_v3_final_actually_final.pt", forget which dataset version used. Two weeks later, can't reproduce results. With MLflow, every experiment logged automatically. Click UI to see all 50 runs sorted by mAP. Know exact parameters, dataset, code commit for each run. Production model breaks, rollback to previous version in one command.
+
+**System design role:** MLflow sits between training code and production infrastructure. Training scripts log to MLflow server. Data scientists compare experiments in UI. Best model gets promoted to production stage in registry. Deployment service pulls production model from registry, serves it. Monitoring detects performance drop, triggers retraining pipeline, new model goes through staging before replacing production. MLflow is single source of truth for model lifecycle.
+
+Why MLflow dominates: Simple to start, powerful at scale. Used by thousands of companies from startups to enterprises. Open source with no vendor lock-in. Integrates with everything. Can run locally or in cloud. Minimal code changes needed. Can start with SQLite backend on laptop, scale to PostgreSQL + S3 for team of 100 engineers. Same API, same code.
 
 ### MLflow Tracking
 
 **Experiment tracking and comparison:** Log parameters, metrics, artifacts, models from training runs. Compare experiments in web UI. Answer questions like "which learning rate gave best accuracy?" or "what hyperparameters did production model use?".
+
+**What it solves:** Every ML project runs dozens to thousands of experiments. Each experiment has hyperparameters (learning rate, batch size, architecture), produces metrics (accuracy, loss, mAP), generates artifacts (model weights, plots, logs). Tracking this manually is impossible. Excel spreadsheets break. Notebook cells get deleted. Model files lose connection to parameters that created them. MLflow Tracking makes this automatic and searchable.
+
+**In system design:** Training pipeline calls MLflow API to log everything. Each experiment gets unique ID. UI shows table of all experiments with sortable columns. Filter experiments where mAP > 0.9. Click experiment to see full details - parameters used, metrics over time, artifacts produced, git commit SHA, duration, who ran it. Data scientist compares top 5 experiments side-by-side, understands which parameters matter. Production system queries MLflow API to get best model by metric. Everything connected, nothing lost.
 
 **Core concepts:**
 
@@ -203,7 +213,11 @@ with mlflow.start_run(run_name="hyperparameter_search") as parent_run:
 
 **Model packaging and deployment:** Standardized format for packaging ML models. Works with any framework. Deploy to REST API, AWS SageMaker, Azure ML, Kubernetes. Model includes all dependencies, preprocessing code, inference logic.
 
-**Model flavors:** MLflow supports multiple "flavors" - PyTorch, TensorFlow, ONNX, scikit-learn, custom Python functions.
+**What it solves:** Trained PyTorch model on laptop. Now need to deploy to production. Model file is .pt file. But production needs dependencies (pytorch==2.0, torchvision==0.15, opencv==4.7), preprocessing code (resize to 640x640, normalize, BGR to RGB), inference code (run NMS, filter low confidence detections), postprocessing (convert boxes to JSON). Without MLflow Models, you write Dockerfile manually, debug dependency conflicts, forget preprocessing step, production predictions wrong. With MLflow Models, package everything together. One artifact contains model + dependencies + code. Deploy anywhere with same results.
+
+**System design role:** Training produces model.pt file. MLflow Models wraps it with metadata, dependencies, inference code. Saves to artifact store (S3, Azure Blob, local filesystem). Deployment service loads MLflow Model, not raw PyTorch file. Same loading code works for PyTorch, TensorFlow, ONNX, scikit-learn models. Switch frameworks without changing deployment infrastructure. MLflow Models = interface between training and serving systems.
+
+**Model flavors:** MLflow supports multiple "flavors" - PyTorch, TensorFlow, ONNX, scikit-learn, custom Python functions. Flavor means framework-specific loading mechanism. Same MLflow Model can have multiple flavors. Train PyTorch model, save as both PyTorch and ONNX flavors. Serving system picks ONNX for speed, debugging loads PyTorch for full Python access.
 
 **Saving models:**
 ```python
@@ -313,11 +327,15 @@ curl -X POST http://localhost:5001/invocations \
 
 **Centralized model store:** Registry for managing model lifecycle. Version models, stage transitions (Staging → Production), approval workflows, model lineage.
 
+**What it solves:** Company has 10 ML models in production. Each model has multiple versions. Version 3 of object detector deployed in US region, version 4 in EU, version 2 still running in legacy system. Which is which? What parameters trained each version? Who approved deployment? When? Without registry, this is tribal knowledge in Slack messages and spreadsheets. Production breaks, nobody knows which model version to rollback to. With Model Registry, every model version tracked. See deployment history, who approved, performance metrics, can rollback in seconds.
+
+**System design role:** Model Registry sits between experimentation and production. Training produces many models logged to MLflow Tracking. Data scientist picks best model, registers it in Model Registry as version 1. Model goes to Staging stage, QA team tests it. Performance good, ML lead approves, transitions to Production stage. Deployment system watches Production stage, automatically deploys when model transitions. Old production model archived. Full audit trail. Compliance team can see every model version ever deployed, who approved, when, why.
+
 **Model stages:**
-- **None**: Initial registration
-- **Staging**: Testing in staging environment
-- **Production**: Deployed to production
-- **Archived**: Deprecated models
+- **None**: Initial registration, not ready for deployment
+- **Staging**: Testing in staging environment, QA validation, integration tests
+- **Production**: Deployed to production, serving real traffic
+- **Archived**: Deprecated models, kept for compliance/rollback
 
 **Using model registry:**
 ```python
@@ -424,6 +442,10 @@ def approve_model_for_production(model_name, version, approver):
 
 **Reproducible ML code:** Package ML code in reusable format. Specify dependencies, parameters, entry points. Run locally, remotely, on cloud.
 
+**What it solves:** Data scientist trains model, shares code via GitHub. Teammate clones repo, runs training script. Breaks immediately. Missing dependencies. Different Python version. Different CUDA version. Environment variables not set. Paths hardcoded. After 2 hours of debugging, still doesn't run. With MLflow Projects, all dependencies specified in one file. One command reproduces exact environment, runs training identically on any machine.
+
+**System design role:** MLflow Projects defines reproducible ML unit. Project = code + dependencies + entry points + parameters. CI/CD system clones project, runs it with different parameters for hyperparameter search. Results logged to MLflow Tracking automatically. Kubernetes job scheduler runs MLflow Project on GPU cluster. Research team shares project, other teams reuse it with different datasets. Same code, reproducible everywhere.
+
 **MLproject file:**
 ```yaml
 # MLproject
@@ -474,7 +496,13 @@ mlflow run . --backend kubernetes --backend-config kubernetes_config.json
 
 **ML experiment tracking platform:** Comet is cloud-based experiment tracking similar to MLflow but with more advanced features. Better visualization, collaboration tools, model comparison UI. Commercial product with free tier. Stronger focus on deep learning workflows.
 
-Why Comet: Superior UI/UX compared to MLflow. Built-in hyperparameter optimization. Real-time collaboration features. Great for research teams. Hosted solution (no infrastructure needed). Rich visualization for comparing hundreds of experiments.
+**What Comet does:** Solves same problem as MLflow Tracking but with better UX. Logs experiments to cloud automatically. Shows real-time training progress. Compare 100 experiments in parallel plot - instantly see which hyperparameters matter. Team collaboration built-in - share experiment, teammate sees same view. Hyperparameter optimization integrated - define search space, Comet runs optimization automatically.
+
+**Why needed over MLflow:** MLflow works but UI basic. Comparing many experiments clunky. No built-in hyperparameter tuning. No team collaboration features. Comet built specifically for deep learning research teams. Better for when running thousands of experiments, need powerful comparison tools, want managed solution without server setup.
+
+**System design role:** Training script imports Comet, automatically logs everything to cloud. Data scientist opens Comet web UI from anywhere, sees all experiments. Filters by metric, sorts by performance, creates custom dashboard. Shares experiment URL with teammate for code review. Training runs on remote GPU server, logs stream to Comet in real-time. Team lead monitors training progress on phone. No infrastructure to manage, no server to maintain.
+
+Why Comet: Superior UI/UX compared to MLflow. Built-in hyperparameter optimization. Real-time collaboration features. Great for research teams. Hosted solution (no infrastructure needed). Rich visualization for comparing hundreds of experiments. Trade-off: vendor lock-in, costs money at scale, data leaves your infrastructure.
 
 **Installation:**
 ```bash
@@ -590,7 +618,13 @@ for experiment in opt.get_experiments():
 
 **ML developer tools platform:** W&B is popular experiment tracking and visualization platform. Excellent for deep learning. Real-time dashboards, hyperparameter tuning, model versioning. Used by OpenAI, Toyota, NVIDIA. Commercial with generous free tier.
 
-Why W&B popular: Best-in-class visualizations. Real-time experiment monitoring. Great for remote teams. Integrates with PyTorch Lightning, Hugging Face, fastai. Powerful sweeps for hyperparameter tuning. Model registry and artifact tracking.
+**What W&B does:** Complete MLOps platform focused on deep learning. Tracks experiments like Comet/MLflow but with best visualization. Logs images, videos, 3D point clouds, audio - critical for computer vision, robotics, speech models. Sweeps feature runs hyperparameter optimization on your infrastructure. Artifacts track datasets and models with lineage. Reports create rich documentation with embedded plots, images, code.
+
+**Why needed in DL workflows:** Deep learning experiments generate rich media. Training object detector, need to see predictions over time - bounding boxes on images. Training GAN, need to see generated images improving. Training RL agent, need to see video of agent behavior. W&B handles this naturally. Log images every epoch, W&B creates gallery showing model improvement. Debug by seeing exactly what model predicted vs ground truth. Share beautiful reports with stakeholders showing results.
+
+**System design role:** Integrates at training loop level. After each epoch, log metrics, images, predictions to W&B. Creates real-time dashboard showing training progress. Distributed training on 8 GPUs, all log to same W&B run. Hyperparameter sweep launches 100 training jobs with different configs, W&B tracks all of them, ranks by performance. Model artifacts saved to W&B, deployment pulls from there. Reports document model performance for model cards, stakeholder updates, paper submissions.
+
+Why W&B popular: Best-in-class visualizations. Real-time experiment monitoring. Great for remote teams. Integrates with PyTorch Lightning, Hugging Face, fastai. Powerful sweeps for hyperparameter tuning. Model registry and artifact tracking. OpenAI used W&B for GPT-3 training. Free tier generous enough for small teams. Trade-off: commercial product, vendor lock-in, costs significant at scale.
 
 **Installation:**
 ```bash
@@ -724,7 +758,13 @@ wandb.agent(sweep_id, function=train, count=50)
 
 **Workflow orchestration platform:** Airflow schedules and monitors workflows (DAGs - Directed Acyclic Graphs). Originally for data engineering, now used for ML pipelines. Schedule training jobs, automate retraining, orchestrate multi-step ML workflows.
 
-Why Airflow for ML: Need to retrain model weekly with new data? Airflow schedules it. Complex pipeline with data collection → preprocessing → training → evaluation → deployment? Airflow orchestrates all steps. Handles failures, retries, monitoring.
+**What Airflow does:** Orchestrates complex workflows as directed graphs. Each workflow is DAG (Directed Acyclic Graph) of tasks. Task = Python function, bash command, SQL query, whatever. Define dependencies between tasks. Airflow scheduler executes tasks in correct order. Task fails, Airflow retries. Task takes too long, Airflow alerts. Web UI shows workflow state, task logs, execution history.
+
+**Why needed for ML pipelines:** ML isn't just training. Real production ML workflow: collect new data from S3, validate data quality, preprocess images, train model, evaluate on test set, compare with production model, register in MLflow, deploy if better, run smoke tests, notify team. 8 steps, each can fail. Manual execution error-prone. Airflow automates this. Schedule daily at 2 AM. Each step succeeds or fails independently. Failure sends alert. Retry automatically. Track execution history. Audit what ran when.
+
+**System design role:** Airflow is orchestration layer above all other tools. DAG task 1 calls DVC to get latest data. Task 2 validates with Great Expectations. Task 3 runs training script that logs to MLflow. Task 4 evaluates model. Task 5 promotes model in MLflow Registry. Task 6 triggers deployment. Each task is separate process, can fail independently. Airflow provides scheduling, monitoring, alerting, retries, dependency management. Central place to see all ML pipelines running in organization.
+
+Why Airflow for ML: Need to retrain model weekly with new data? Airflow schedules it. Complex pipeline with data collection → preprocessing → training → evaluation → deployment? Airflow orchestrates all steps. Handles failures, retries, monitoring. Most mature workflow orchestration tool. Large ecosystem, extensive integrations. Used by Airbnb, Netflix, Adobe. Trade-off: complex to set up, Python DAG syntax verbose, better options exist for pure ML (Kubeflow, Prefect).
 
 **Core concepts:**
 
@@ -953,7 +993,13 @@ wait_for_data >> collect_data_task
 
 **ML toolkit for Kubernetes:** Kubeflow makes ML workflows portable and scalable on Kubernetes. End-to-end ML platform from notebooks to production. Built by Google, now CNCF project. Perfect for teams already on Kubernetes.
 
-Why Kubeflow: Run ML workloads on Kubernetes cluster. Portable across cloud providers. Scales training to 100s of GPUs. Built-in experiment tracking, hyperparameter tuning, pipelines, serving. Complete ML platform.
+**What Kubeflow does:** Complete ML platform built on Kubernetes. Provides everything needed for ML - Jupyter notebooks, training operators for distributed training, pipeline orchestration, hyperparameter tuning, model serving. All Kubernetes-native. Deploy once, scales to thousands of experiments. Multi-tenant - multiple teams share same cluster. Framework-agnostic - works with PyTorch, TensorFlow, XGBoost, anything.
+
+**Why needed for K8s ML:** Organization runs on Kubernetes. Want to run ML workloads there too. Training job needs 8 GPUs across 4 nodes - Kubeflow Training Operator handles distributed setup automatically. Need to run 100 hyperparameter experiments in parallel - Katib does this. Need pipeline orchestration - Kubeflow Pipelines provides DAG workflow. Need to serve models - KServe handles auto-scaling, A/B testing, canary rollouts. Everything integrated, everything scales on K8s.
+
+**System design role:** Kubeflow is ML platform layer on top of Kubernetes. Data scientist launches Jupyter notebook in Kubeflow, notebooks run as K8s pods with GPU access. Creates training pipeline as Python code, Kubeflow Pipelines converts to K8s resources, schedules execution. Katib launches hyperparameter search as K8s jobs. Best model deployed via KServe, creates K8s deployment with auto-scaling. Everything uses K8s primitives - pods, services, volumes. Integrates with existing K8s infrastructure - ingress, monitoring, logging, security.
+
+Why Kubeflow: Run ML workloads on Kubernetes cluster. Portable across cloud providers - same YAML works on GKE, EKS, AKS, on-prem. Scales training to 100s of GPUs. Built-in experiment tracking, hyperparameter tuning, pipelines, serving. Complete ML platform. Trade-off: requires Kubernetes expertise, complex setup, overkill if not already on K8s. Best for organizations committed to Kubernetes.
 
 **Components:**
 
@@ -1178,7 +1224,13 @@ spec:
 
 **Git for data and models:** DVC versions large files (datasets, models) that Git can't handle. Works alongside Git. Track dataset changes, reproduce experiments, share data efficiently. Essential for ML reproducibility.
 
-Why DVC critical: Git tracks code. DVC tracks data. Together they provide complete versioning. Can checkout any commit and reproduce exact experiment with correct code AND data versions. Share multi-GB datasets across team without bloating Git repository.
+**What DVC does:** Git but for datasets and models. Git works great for code, fails for large files. Can't commit 50GB dataset to Git. DVC solves this. Commit dataset to DVC, stores actual data in S3/GCS/Azure, Git only tracks small .dvc metadata file. Change dataset, DVC tracks changes like Git tracks code changes. Checkout any commit, DVC pulls correct data version automatically. Team shares expensive cloud storage instead of duplicating data locally.
+
+**Why needed for reproducibility:** ML reproducibility requires code + data + environment. Git handles code. Docker handles environment. What handles data? DVC. Two months ago trained model achieving 95% accuracy. Today trying to reproduce, getting 88%. Why? Dataset changed. Someone added bad samples. Someone changed preprocessing. With DVC, checkout git commit from 2 months ago, run `dvc pull`, get exact dataset version. Reproduce results exactly.
+
+**System design role:** DVC integrates with Git workflow. Training pipeline starts by running `dvc pull` to get latest data. Git commit references data version via .dvc files. CI/CD system checks out code, DVC pulls data automatically. Training produces new model, `dvc add models/model.pt` versions it. Push to remote storage with `dvc push`. Deployment pulls specific model version with DVC. Data versioning synchronized with code versioning. Complete reproducibility.
+
+Why DVC critical: Git tracks code. DVC tracks data. Together they provide complete versioning. Can checkout any commit and reproduce exact experiment with correct code AND data versions. Share multi-GB datasets across team without bloating Git repository. Simple mental model - DVC is Git for data. Commands similar: `dvc add`, `dvc push`, `dvc pull`, `dvc checkout`. Integration seamless.
 
 **Installation:**
 ```bash
@@ -1299,7 +1351,13 @@ dvc exp apply best-exp-id
 
 **Python library for data science workflows:** Metaflow by Netflix simplifies building and deploying data science projects. Focus on code, Metaflow handles infrastructure. Version code/data/artifacts automatically. Deploy to AWS seamlessly.
 
-Why Metaflow: Extremely simple Python API. No YAML, no configuration files. Production-ready out of box. Netflix battle-tested at scale. AWS integration built-in. Great for data scientists who want to focus on models not infrastructure.
+**What Metaflow does:** Write ML workflow as Python class. Each step is class method. Run locally with one command. Run on AWS Batch with same command + one flag. Metaflow automatically versions everything - code, data, artifacts, parameters. No configuration files, no YAML, pure Python. Built by Netflix for data scientists to ship to production without DevOps involvement.
+
+**Why needed for data science teams:** Data scientists write notebooks. "How to productionize this?" is eternal question. Metaflow provides answer. Structure notebook as Metaflow flow - class with step methods. Run locally to debug. Deploy to AWS, runs at scale automatically. Metaflow handles infrastructure, dependency management, artifact storage, versioning. Data scientist writes Python, Metaflow makes it production-ready. Netflix uses this for thousands of workflows in production.
+
+**System design role:** Metaflow abstracts infrastructure complexity. Data scientist writes FlowSpec class defining workflow logic. Local execution runs in process, useful for debugging. AWS execution: Metaflow packages code as Docker image, submits to AWS Batch, streams logs back. Artifacts saved to S3 automatically. Every run versioned - can inspect any past run, get its artifacts, see its parameters. Hyperparameter search: parent run spawns child runs in parallel, each on separate AWS Batch instance. Metaflow handles orchestration, data passing, result collection.
+
+Why Metaflow: Extremely simple Python API. No YAML, no configuration files. Production-ready out of box. Netflix battle-tested at scale - runs hundreds of thousands of workflows monthly. AWS integration built-in - one flag switches from local to AWS. Great for data scientists who want to focus on models not infrastructure. Trade-off: AWS-centric, other clouds not first-class. Less mature than Airflow. Opinionated workflow model may not fit all use cases.
 
 **Installation:**
 ```bash
@@ -1506,7 +1564,13 @@ if __name__ == '__main__':
 
 **Data versioning and pipelines:** Pachyderm is Git for data plus Docker-based pipelines. Version data like code, build containerized pipelines. Automatic versioning, provenance tracking, data lineage. Kubernetes-native.
 
-Why Pachyderm: Built for data science. Every data commit triggers pipeline. Complete data lineage from raw data to model. Roll back to any data version. Parallel processing automatically. Perfect for reproducibility.
+**What Pachyderm does:** Data version control + pipeline orchestration in one system. Data stored in repositories like Git repos. Commit data, Pachyderm versions it. Create pipeline that processes data - pipeline is Docker container. New data committed, pipeline automatically runs on new data. Output versioned automatically. Complete data lineage - trace any output back through all transformations to original raw data. All runs on Kubernetes.
+
+**Why needed for data-centric ML:** ML is data transformations. Raw images → preprocessed images → augmented dataset → trained model → evaluated model. Each step produces data. Need to version all intermediate data, track lineage, enable rollback. DVC versions files but doesn't run pipelines. Airflow runs pipelines but doesn't version data. Pachyderm does both. Change preprocessing code, Pachyderm automatically reprocesses all data, retrains downstream models. Complete automation with full provenance.
+
+**System design role:** Pachyderm is data-centric orchestration layer. Create repository for raw data. Create pipeline that preprocesses - pipeline is Docker image, runs on every data commit. Output goes to preprocessing repo. Training pipeline watches preprocessing repo, trains model when new data arrives. Evaluation pipeline watches model repo, evaluates new models. Entire DAG of data transformations automated. Every intermediate result versioned. Compliance team audits: exactly which raw data produced which model. Rollback preprocessing change, Pachyderm recomputes everything affected.
+
+Why Pachyderm: Built for data science. Every data commit triggers pipeline. Complete data lineage from raw data to model. Roll back to any data version. Parallel processing automatically - Pachyderm shards large datasets across containers. Perfect for reproducibility and compliance. Trade-off: requires Kubernetes, complex setup, steeper learning curve than DVC or Airflow alone. Best when data lineage and provenance critical - regulated industries, research requiring reproducibility.
 
 **Installation:**
 ```bash
@@ -1606,6 +1670,12 @@ pachctl create pipeline -f training_pipeline.json --reprocess
 
 **ML experiment management platform:** ClearML (formerly Allegro Trains) provides experiment tracking, orchestration, data management. Open source with enterprise features. AutoML capabilities, remote execution, model serving.
 
+**What ClearML does:** Complete MLOps platform with heavy automation. Auto-logs everything from training - code, installed packages, git info, parameters, metrics, console output, plots, models. No code changes needed for basic tracking. Orchestration layer runs experiments on remote machines. Data versioning for datasets. Hyperparameter optimization. Model registry. Model serving. Web UI for experiment comparison. Task scheduling.
+
+**Why needed for auto-tracking:** Most tracking tools require code changes - import library, add logging calls. ClearML auto-captures everything with minimal code. Just call Task.init(), ClearML logs git commit, installed packages, command line args, TensorBoard logs, model checkpoints. Good for quickly adding tracking to existing code. Remote execution - run experiment locally, ClearML clones it to remote GPU machine. Orchestration without writing DAGs.
+
+**System design role:** ClearML is all-in-one MLOps platform. Training script calls Task.init(), everything auto-logged to ClearML server. Experiment runs on laptop, ClearML captures state. Clone experiment to run on remote GPU server - ClearML copies code, environment, parameters, runs remotely. Hyperparameter optimization - ClearML launches multiple experiments with different configs. Data versioning tracks dataset changes. Model registry stores production models. Deployment queries registry. ClearML provides complete stack - lighter than Kubeflow, heavier than just MLflow.
+
 **Installation:**
 ```bash
 pip install clearml
@@ -1657,7 +1727,13 @@ task.upload_artifact('best_model', artifact_object='best.pt')
 
 **Metadata store for ML:** Neptune tracks all ML metadata - experiments, models, datasets, code. Focused on team collaboration and large-scale experiment management. Strong visualization and comparison features. Commercial with generous free tier.
 
-Why Neptune: Handles thousands of experiments easily. Superior experiment comparison UI. Great for research teams running many experiments. Lightweight integration. Good for organizations needing audit trails and governance.
+**What Neptune does:** Lightweight experiment tracking focused on metadata. Logs everything about ML runs - parameters, metrics, code, environment, artifacts. Organizes in hierarchical structure - workspace/project/experiment. Advanced comparison UI - compare 100s of experiments, create custom views, filter by metrics. Collaborate via sharing experiment links. Dashboard shows team activity, recent experiments. Model registry tracks models, versions, metadata.
+
+**Why needed for experiment-heavy teams:** Research teams run thousands of experiments. Need to compare all of them, find patterns. "Which hyperparameters work best for this architecture?" requires comparing 500 runs. Neptune excels at this - parallel coordinates plots, scatter plots, custom visualizations. Team collaboration - researcher shares experiment link, teammate sees exact same view, discusses in comments. Audit trail - compliance team sees all experiments, who ran what when. Scales to massive experiment counts without performance issues.
+
+**System design role:** Neptune is lightweight tracking layer. Training script imports neptune, logs run metadata. Everything stored in Neptune cloud. Data scientists access via web UI or API. Create dashboards showing team progress, best models, recent experiments. Filters find relevant experiments - "mAP > 0.9 AND learning_rate < 0.01". Comparison mode shows 50 experiments side-by-side with metrics, parameters, diff. Model registry stores production models with metadata. Deployment queries Neptune API for production model metadata. Integrates with MLflow, Weights & Biases as alternative or complement.
+
+Why Neptune: Handles thousands of experiments easily. Superior experiment comparison UI. Great for research teams running many experiments. Lightweight integration - few lines of code. Good for organizations needing audit trails and governance. Managed service, no infrastructure. Generous free tier for small teams. Trade-off: commercial product, data in cloud, vendor lock-in. Best for teams running extensive experimentation, need collaboration, want managed solution.
 
 **Installation:**
 ```bash
@@ -1756,7 +1832,13 @@ best_run["model/weights"].download("best_model.pt")
 
 **Visualization toolkit:** TensorBoard is TensorFlow's visualization tool but works with PyTorch too. Visualize training metrics, model graphs, embeddings, images. Free and open source. Standard for deep learning visualization.
 
-Why TensorBoard: Simple, works everywhere. Real-time training visualization. Hyperparameter comparison. Embedding projector for high-dimensional data. No account needed, runs locally.
+**What TensorBoard does:** Real-time visualization during training. Log scalars (loss, accuracy), images (predictions, inputs), histograms (weights, gradients), model graphs (architecture), embeddings (high-dimensional projections). TensorBoard reads logs, creates interactive web dashboard. Scalars tab shows metrics over time with smoothing. Images tab shows visual outputs. Graphs tab shows model architecture. Projector visualizes embeddings in 3D with t-SNE/PCA. Compare multiple runs in same view.
+
+**Why needed for training visualization:** Training deep learning models requires watching progress. Loss decreasing? Gradients exploding? Model learning? Without visualization, staring at console logs showing numbers. TensorBoard makes this visual. See loss curve dropping smoothly or oscillating. See training vs validation diverging (overfitting). See predictions improving over epochs - images with bounding boxes getting more accurate. Debug training issues visually - gradient histogram shows vanishing gradients, model graph shows architecture mistakes.
+
+**System design role:** TensorBoard is visualization layer for training. Training loop logs to TensorBoard writer - scalars every iteration, images every epoch. TensorBoard server reads logs from filesystem, serves web UI. Data scientist opens localhost:6006, sees real-time training progress. Distributed training - all workers log to same directory, TensorBoard combines. Compare experiments - multiple log directories, TensorBoard shows overlaid metrics. Integrates with everything - PyTorch, TensorFlow, JAX. Simple local tool, no cloud needed. Share results by uploading logs or screenshots.
+
+Why TensorBoard: Simple, works everywhere. Real-time training visualization. Hyperparameter comparison. Embedding projector for high-dimensional data. No account needed, runs locally. Free and open source. Standard in deep learning - most papers include TensorBoard plots. Trade-off: basic compared to W&B/Comet, no collaboration features, manual file management. Best for local development, quick visualization, teams wanting free tool without cloud.
 
 **Installation:**
 ```bash
@@ -1841,7 +1923,13 @@ tensorboard --logdir=runs --port=6006
 
 **Modern workflow orchestration:** Prefect is next-generation Airflow. Python-native, easier to use, better error handling. Dynamic workflows, parametric runs. Hybrid execution model (code runs anywhere, orchestration in cloud).
 
-Why Prefect over Airflow: Pure Python (no DAG syntax), easier debugging, better UI, parametric flows, hybrid architecture. Modern development experience. Growing adoption.
+**What Prefect does:** Workflow orchestration like Airflow but modern. Write workflows as Python functions with decorators. No DAG syntax, no templates, just Python. Tasks automatically retry on failure. Dynamic workflows - number of tasks determined at runtime. Parametric flows - same workflow with different parameters. Caching - skip expensive tasks if inputs unchanged. Hybrid execution - orchestration in Prefect Cloud, code runs on your infrastructure. Better error handling - automatically captures context, easier debugging.
+
+**Why needed over Airflow:** Airflow works but clunky. DAG definition verbose, dynamic DAGs complex, testing difficult, debugging painful. Prefect fixes this. Define workflow as Python function decorated with @flow. Tasks are @task decorated functions. Run locally to test, deploy to cloud with one command. Errors show full context automatically. Retries, timeouts, caching built-in. Dynamic workflows natural - generate tasks in for loop. Modern Python experience, not 2015 Airflow design.
+
+**System design role:** Prefect orchestrates ML workflows like Airflow but simpler. Training pipeline is Prefect flow - data download task → preprocessing task → training task → evaluation task → deployment task. Tasks automatically tracked, retried on failure. Prefect Cloud UI shows flow runs, task status, logs. Schedule flows with cron or event triggers. Task runs on your infrastructure (K8s, ECS, local), orchestration managed by Prefect. State management automatic - Prefect tracks what succeeded, what failed, what to retry. Notifications on failure. Easier to develop and maintain than Airflow DAGs.
+
+Why Prefect over Airflow: Pure Python (no DAG syntax), easier debugging, better UI, parametric flows, hybrid architecture. Modern development experience. Growing adoption. Better for ML workflows - dynamic pipelines, easier experimentation. Trade-off: less mature than Airflow, smaller ecosystem, newer tool. Best for teams wanting modern orchestration, not happy with Airflow complexity, Python-first approach.
 
 **Installation:**
 ```bash
@@ -1996,7 +2084,13 @@ deployment.apply()
 
 **MLOps framework:** ZenML provides abstractions for building portable ML pipelines. Framework-agnostic, runs anywhere (local, cloud, Kubernetes). Focuses on reproducibility and production readiness. Open source.
 
-Why ZenML: Standardizes ML workflows. Write once, run anywhere. Built-in integrations with MLflow, W&B, Kubeflow, SageMaker. Easier than building MLOps from scratch. Good for teams building ML platform.
+**What ZenML does:** Framework for portable ML pipelines. Define pipeline as Python functions with type hints. ZenML tracks everything - data, artifacts, models, parameters, code, environment. Stack abstraction - separate pipeline logic from infrastructure. Same pipeline runs locally, on Kubeflow, on SageMaker, on Vertex AI - just change stack. Built-in integrations with MLflow, W&B, DVC, Feast, MLflow. Automatic lineage tracking. Model deployment integrations.
+
+**Why needed for platform building:** Building ML platform from scratch is hard. Need orchestration, experiment tracking, artifact storage, model registry, serving, monitoring. ZenML provides abstraction layer. Write pipeline once with ZenML, run on any infrastructure. Local stack for development, Kubernetes stack for production. Switch by changing configuration, not code. Integrations ready - plug in MLflow for tracking, Feast for features, Seldon for serving. Faster than integrating everything manually.
+
+**System design role:** ZenML is abstraction layer for ML infrastructure. Define "stack" - orchestrator (local, Airflow, Kubeflow), artifact store (local, S3, GCS), container registry (Docker Hub, ECR), model deployer (BentoML, Seldon, SageMaker). Write pipeline using ZenML decorators. Run pipeline, ZenML uses configured stack - launches on orchestrator, stores artifacts, versions everything. Change stack in config, pipeline runs on different infrastructure. Good for ML platform teams - provide ZenML stacks to ML engineers, they write portable pipelines. Lineage automatic - trace model back through pipeline to training data.
+
+Why ZenML: Standardizes ML workflows. Write once, run anywhere. Built-in integrations with MLflow, W&B, Kubeflow, SageMaker. Easier than building MLOps from scratch. Good for teams building ML platform. Enforces best practices - versioning, lineage, reproducibility. Trade-off: abstraction layer complexity, learning curve, opinionated design. Best for teams wanting portable pipelines, building internal ML platform, standardizing across projects.
 
 **Installation:**
 ```bash
@@ -2095,7 +2189,13 @@ python train_pipeline.py
 
 **Model serving framework:** BentoML packages models as production-ready API services. Supports all ML frameworks. Generates Docker images, Kubernetes configs automatically. Focus on model deployment and serving.
 
-Why BentoML: Simplest way to deploy models as APIs. Automatic optimization, batching, adaptive scaling. Generate deployment artifacts with one command. Great for data scientists who need to deploy without DevOps.
+**What BentoML does:** Take trained model, turn into production API with few lines of code. Define service class with inference logic, preprocessing, postprocessing. BentoML creates REST API automatically. Handles request batching for throughput. Generates Docker image. Generates Kubernetes deployment YAML. Model serving solved end-to-end. Works with any framework - PyTorch, TensorFlow, ONNX, scikit-learn, custom code.
+
+**Why needed for model deployment:** Trained model is just weights file. Production needs HTTP API that accepts images, runs preprocessing, executes inference, returns JSON. Most data scientists don't want to write Flask app, Dockerfile, K8s YAML, load balancer config. BentoML abstracts this. Write inference function in Python, BentoML handles everything else. Production-grade API with monitoring, logging, batching, auto-scaling. Deploy to any cloud with generated artifacts.
+
+**System design role:** BentoML bridges ML training and production serving. Training produces model artifact. BentoML service defines how to use that artifact - load model, preprocess input, run inference, postprocess output. `bentoml build` packages service + model + dependencies as Bento. `bentoml containerize` creates Docker image. Deploy image to Kubernetes, ECS, Lambda, anywhere Docker runs. Serving infrastructure treats it like any service. Scales up/down based on load. Multiple model versions deployed simultaneously for A/B testing. Roll back by redeploying previous Bento version.
+
+Why BentoML: Simplest way to deploy models as APIs. Automatic optimization, batching, adaptive scaling. Generate deployment artifacts with one command. Great for data scientists who need to deploy without DevOps. Integrates with MLflow, Weights & Biases for pulling models. OpenAPI spec auto-generated for API documentation. Scales to high throughput with request batching. Trade-off: opinionated serving framework, less flexible than custom implementation. Best for teams wanting standardized deployment, not custom serving logic.
 
 **Installation:**
 ```bash
@@ -2203,7 +2303,13 @@ curl -X POST http://localhost:3000/detect \
 
 **ML deployment on Kubernetes:** Seldon Core deploys ML models on Kubernetes at scale. Supports all frameworks, A/B testing, canary rollouts, explainability. Production-grade model serving.
 
-Why Seldon Core: Enterprise-ready serving. Advanced deployment patterns (A/B, multi-armed bandits, canary). Monitoring, explainability built-in. Best for Kubernetes-first organizations.
+**What Seldon Core does:** Kubernetes-native model serving with advanced capabilities. Deploy model as Seldon Deployment CRD. Seldon creates K8s resources - pods, services, ingress. Handles traffic routing for A/B tests - 80% to model v1, 20% to model v2. Canary rollouts - gradually shift traffic from old to new. Multi-armed bandits - automatically route to best performing model. Explainability - SHAP, LIME integrated. Outlier detection - flag unusual inputs. All declarative via Kubernetes YAML.
+
+**Why needed for enterprise serving:** Production model serving isn't just inference. Need gradual rollouts to mitigate risk. Need A/B testing to compare models. Need explainability for regulated industries. Need outlier detection to catch bad inputs. Need monitoring, metrics, logging. Building this custom is months of work. Seldon Core provides it as Kubernetes platform. Deploy complex serving graphs - preprocessing → inference → postprocessing → explainer. Multiple models in pipeline. Shadow mode deployment. All production patterns solved.
+
+**System design role:** Seldon Core is model serving platform on Kubernetes. Models deployed as SeldonDeployment resources. Seldon operator watches these, creates K8s pods/services. Each model runs in container, can be different frameworks. Istio/Ambassador handles ingress, traffic splitting. Monitoring via Prometheus, logs via ELK. ML engineer defines serving graph in YAML - model A → model B → combiner. Deploy complex patterns: ensemble multiple models, route by feature value, shadow production model with candidate. Platform team provides Seldon Core, ML teams deploy models via YAML.
+
+Why Seldon Core: Enterprise-ready serving. Advanced deployment patterns (A/B, multi-armed bandits, canary). Monitoring, explainability built-in. Best for Kubernetes-first organizations. Integrates with service mesh (Istio), metrics (Prometheus), logging. Multi-framework support. Trade-off: requires Kubernetes, complex for simple use cases. Overkill if just need single model API. Best for large organizations with complex serving requirements, already on K8s.
 
 **Installation:**
 ```bash
@@ -2285,7 +2391,13 @@ spec:
 
 **ML monitoring and data drift detection:** Evidently monitors ML models in production. Detects data drift, model degradation, data quality issues. Generates reports and dashboards. Critical for maintaining model performance.
 
-Why Evidently: Models degrade over time. Evidently detects when retraining needed. Monitors data distribution changes. Open source with enterprise option. Easy integration.
+**What Evidently does:** Monitoring for ML models in production. Compares production data distribution to training data distribution - detects drift. Tracks prediction distribution over time - catches model degradation. Validates data quality - missing values, outliers, type mismatches. Monitors model performance metrics when ground truth available. Generates visual reports showing drift, performance changes. Can run as tests in CI/CD - fail deployment if data quality issues detected.
+
+**Why needed for production ML:** Models degrade silently. Object detector trained on summer data, deployed in winter. Snow in images, different lighting, performance drops 20%. Without monitoring, nobody notices until customers complain. Evidently detects this automatically - feature distributions shifted, model performance degraded. Alert triggers, retraining starts. Also catches data quality issues before they reach model - API starts sending images in wrong format, Evidently catches in validation layer, prevents bad predictions.
+
+**System design role:** Evidently sits in monitoring layer. Production inference service logs predictions, features, labels (when available) to database. Scheduled job runs Evidently tests comparing recent week data to training data. Drift detected → alert to ML team. Performance degradation detected → trigger retraining pipeline. Data quality issues → block deployment. Dashboards show drift metrics over time. ML team tunes alert thresholds based on business impact. Evidently integrated with CI/CD - validate new data before retraining, catch poisoned data.
+
+Why Evidently: Models degrade over time. Evidently detects when retraining needed. Monitors data distribution changes. Open source with enterprise option. Easy integration - just pass dataframes. Generates beautiful HTML reports for stakeholders. Can run in batch or real-time. Tests framework integrates with CI/CD. Trade-off: monitoring overhead, storage costs for logged data. Need ground truth for some metrics. Best when model performance critical and can't fail silently.
 
 **Installation:**
 ```bash
@@ -2397,7 +2509,13 @@ if not results['summary']['all_passed']:
 
 **Data validation framework:** Great Expectations validates data quality. Define expectations for data, test automatically. Prevents bad data from breaking models. Critical for data quality assurance.
 
-Why Great Expectations: Bad data = bad models. Validate data before training and in production. Catch data issues early. Generate documentation automatically. Integrates with pipelines.
+**What Great Expectations does:** Unit tests for data. Define expectations - "column X should have no nulls", "column Y values between 0 and 1", "column Z should be one of [A, B, C]". Run validation on dataset. Get detailed report showing which expectations passed, which failed. Automatically generate data documentation. Integrate with data pipelines - block bad data from reaching model training or production.
+
+**Why needed for data quality:** Bad data silently breaks models. Training data has corrupted labels, model learns wrong patterns. Production API receives malformed input, crashes. Data pipeline changes upstream, breaks assumptions. Great Expectations catches this. Define expectations once, validate every data batch. Training pipeline validates data before training - bad data rejected automatically. Production API validates inputs - malformed requests blocked at edge. Data quality enforced automatically, not manually checked.
+
+**System design role:** Great Expectations is data validation layer. Define expectation suite for training data - data types, value ranges, required columns, distributions. Training pipeline runs validation before training starts. Validation fails → pipeline stops, alerts ML team. Production inference validates input data against expectations. Invalid data → return error, log for investigation. Data engineering pipeline validates intermediate data. New data source → create expectations from sample, validate all future data. Expectations serve as data contracts between teams. Generate HTML documentation showing data structure, valid ranges, example values.
+
+Why Great Expectations: Bad data = bad models. Validate data before training and in production. Catch data issues early before they propagate. Generate documentation automatically - know what data looks like. Integrates with pipelines - Airflow, Prefect, Dagster. Store expectations in version control, track changes. Trade-off: overhead of defining expectations, validation compute cost. Best when data quality critical, multiple data sources, teams need data contracts.
 
 **Installation:**
 ```bash
@@ -2489,7 +2607,13 @@ if validate_training_data("data/train.csv"):
 
 **Feature store:** Feast manages ML features. Store, serve, and share features across team. Consistent features for training and serving. Solves training-serving skew problem.
 
-Why Feast: Features computed differently in training vs production cause bugs. Feast ensures consistency. Share features across projects. Point-in-time correctness for historical features. Critical for large ML teams.
+**What Feast does:** Central repository for ML features. Define features once - computation logic, data sources. Use same features for training and serving. Training: fetch historical features at exact point-in-time. Serving: fetch latest features with low latency. Share features across projects - recommendation team computes user engagement features, fraud team reuses them. Feature versioning - track feature changes over time. Materialization - precompute features to feature store for fast serving.
+
+**Why needed for feature consistency:** Training-serving skew is common bug. Training computes features one way (batch SQL), serving computes differently (Python API). Features slightly different, model performs worse in production. Example: "user_avg_purchase_last_30d" computed in training includes today's data. In serving, doesn't include today. Model trained on biased features. Feast solves this - one feature definition, same computation for training and serving. Point-in-time correctness ensures training doesn't use future data.
+
+**System design role:** Feast is feature serving layer. Data engineers define features - SQL transformations on data sources. Features materialized to online store (Redis, DynamoDB) for low-latency serving. Training pipeline fetches historical features from offline store (BigQuery, Redshift) with point-in-time correctness. Serving API fetches from online store in milliseconds. New model needs features → use existing features from Feast, no reimplementation. Feature governance - track which models use which features, impact analysis before feature changes. Feature monitoring - detect feature drift.
+
+Why Feast: Features computed differently in training vs production cause bugs. Feast ensures consistency. Share features across projects - avoid duplicate feature engineering. Point-in-time correctness for historical features - training data doesn't leak future information. Critical for large ML teams with many models sharing features. Trade-off: infrastructure complexity, additional service to maintain. Best when multiple models, feature reuse important, training-serving skew problem exists.
 
 **Installation:**
 ```bash
@@ -2600,7 +2724,13 @@ features = store.get_online_features(
 
 **Data pipeline framework:** Kedro structures data science code. Opinionated project template, data catalog, pipeline abstraction. Enforces best practices. Helps transition from notebooks to production.
 
-Why Kedro: Notebook code is messy. Kedro provides structure. Separate data, code, configuration. Easy testing, versioning, deployment. Good for teams establishing ML engineering practices.
+**What Kedro does:** Framework for organizing data science projects. Provides project template with predefined structure - folders for data, notebooks, pipelines, config. Data catalog abstracts data loading - reference datasets by name, not file paths. Pipeline abstraction defines workflow as nodes with dependencies. Configuration management separates parameters from code. Testing framework for data pipelines. Visualization tool shows pipeline graph.
+
+**Why needed for code organization:** Data science projects become messy. Notebooks with hardcoded paths, functions copy-pasted between files, parameters buried in code, datasets loaded with different methods, no tests, impossible to deploy. Kedro enforces structure. All data access through catalog. All parameters in YAML files. All logic in pipeline nodes. Testable, versioned, deployable. Transition from notebook to production code without rewrite.
+
+**System design role:** Kedro is development framework for ML projects. Data scientists work in Kedro project structure. Data catalog defines all datasets - CSV files, databases, S3 buckets. Pipelines define data transformations as DAGs. Configuration management has environment-specific parameters - local vs production. Testing validates pipeline logic. Kedro run executes pipeline, loading data via catalog, running nodes in order. Deployment packages Kedro project as Docker image or Airflow DAG. Kedro provides consistency across projects - new team member understands any Kedro project immediately.
+
+Why Kedro: Notebook code is messy. Kedro provides structure. Separate data, code, configuration. Easy testing, versioning, deployment. Good for teams establishing ML engineering practices. Forces best practices - modularity, testability, reproducibility. Great for transitioning research code to production. Trade-off: opinionated, learning curve, some boilerplate. Best for teams wanting standardized project structure, transitioning from notebooks.
 
 **Installation:**
 ```bash
